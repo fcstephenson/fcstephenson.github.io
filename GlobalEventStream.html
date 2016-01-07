@@ -1,0 +1,197 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta charset="utf-8" />
+        <title>Genius Sports Globe</title>
+        <style>
+            html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #map {
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body onload="initMap()">
+        <input type="button" onclick="moveToStaduims()" value="Activate" />
+        <div id="map"></div>
+
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD5ot5btmjKfTHfq3uV_pzBK62fIIEqJ9Y"></script>
+
+        <script>
+            var stadiums = [
+                'Etihad Stadium, Manchester',
+                'Stadium of Light, Sunderland',
+                'White Hart Lane, London',
+                'Boleyn Ground, London',
+                'Villa Park, Birmingham',
+                'Goodison Park, Liverpool',
+                'Anfield, Liverpool',
+                'Emirates Stadium, London',
+                'Old Trafford, Manchester',
+                'Camp Nou, Barcelona',
+                'Britannia Stadium, Stoke-on-Trent',
+                'Goldsands Stadium, Bournemouth',
+                'Saturn Stadium, Ramenskoye',
+                'Baltika Stadium, Kaliningrad',
+                'Lenin Stadium, Khabarovsk',
+                'Central Stadium (Astrakhan), Astrakhan’',
+                'Estadio Julio Humberto Grondona, Sarandí',
+                'Estadio Brigadier General Estanislao López, Santa Fe',
+                'Estadio Malvinas Argentinas, Godoy Cruz',
+                'Estadio Libertadores de América, Avellaneda',
+                'Estadio Pedro Bidegain, Tablada',
+                'Estadio Norberto "Tito" Tomaghello, Buenos Aires',
+                'Estadio Roberto Natalio Carminatti, Bahía Blanca',
+                'Estadio José Luis Meiszner, Quilmes',
+                'Estadio Presbítero Bartolomé Grella, Paraná',
+                'Lokomotiv Stadium (Nizhny Novgorod), Nizhniy Novgorod',
+                'Arsenal Stadium, Tula',
+            ];
+
+            function moveToStaduims() {
+                if (stadiums.length == 0){ return; }
+                var stadium = stadiums.shift();
+
+                geocoder.geocode({ 'address': stadium }, function (results, status) {
+                    if (status === google.maps.GeocoderStatus.OK) {
+                        var marker = new google.maps.Marker({
+                            position: results[0].geometry.location,
+                            map: map,
+                        });
+
+                        var label = new Label({
+                            position: results[0].geometry.location,
+                            text: stadium,
+                            map: map
+                        });
+
+                        panTo(results[0].geometry.location.lat(), results[0].geometry.location.lng());
+                    } else {
+                        console.warn('Geocode lookup for "' + stadium + '" was not successful for the following reason: ' + status);
+                    }
+                    setTimeout(moveToStaduims, 1000);
+                });
+            }
+        </script>
+
+        <script>
+            var map;
+            var geocoder;
+
+            function initMap() {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    mapTypeId: google.maps.MapTypeId.SATELLITE,
+                    center: { lat: 51.515180, lng: -0.131434 },
+                    zoom: 5,
+                });
+
+                geocoder = new google.maps.Geocoder();
+            }
+        </script>
+
+        <script>
+            var panPath = [];   // An array of points the current panning action will use
+            var panQueue = [];  // An array of subsequent panTo actions to take
+            var STEPS = 50;     // The number of steps that each panTo action will undergo
+
+            function panTo(newLat, newLng) {
+                if (panPath.length > 0) {
+                    // We are already panning...queue this up for next move
+                    panQueue.push([newLat, newLng]);
+                } else {
+                    // Lets compute the points we'll use
+                    panPath.push("LAZY SYNCRONIZED LOCK");  // make length non-zero - 'release' this before calling setTimeout
+                    var curLat = map.getCenter().lat();
+                    var curLng = map.getCenter().lng();
+                    var dLat = (newLat - curLat) / STEPS;
+                    var dLng = (newLng - curLng) / STEPS;
+
+                    for (var i = 0; i < STEPS; i++) {
+                        panPath.push([curLat + dLat * i, curLng + dLng * i]);
+                    }
+                    panPath.push([newLat, newLng]);
+                    panPath.shift();      // LAZY SYNCRONIZED LOCK
+                    setTimeout(doPan, 20);
+                }
+            }
+
+            function doPan() {
+                var next = panPath.shift();
+                if (next != null) {
+                    // Continue our current pan action
+                    map.panTo(new google.maps.LatLng(next[0], next[1]));
+                    setTimeout(doPan, 20);
+                } else {
+                    // We are finished with this pan - check if there are any queue'd up locations to pan to 
+                    var queued = panQueue.shift();
+                    if (queued != null) {
+                        panTo(queued[0], queued[1]);
+                    }
+                }
+            }
+        </script>
+
+        <script>
+            // Define the overlay, derived from google.maps.OverlayView
+            function Label(opt_options) {
+                // Initialization
+                this.setValues(opt_options);
+
+                // Label specific
+                var span = this.span_ = document.createElement('span');
+                span.style.cssText = 'position: relative; left: -50%; top: -8px; ' +
+                                     'white-space: nowrap; border: 1px solid blue; ' +
+                                     'padding: 2px; background-color: white';
+
+                var div = this.div_ = document.createElement('div');
+                div.appendChild(span);
+                div.style.cssText = 'position: absolute; display: none';
+            };
+
+            Label.prototype = new google.maps.OverlayView;
+
+            // Implement onAdd
+            Label.prototype.onAdd = function () {
+                var pane = this.getPanes().overlayLayer;
+                pane.appendChild(this.div_);
+
+                // Ensures the label is redrawn if the text or position is changed.
+                var me = this;
+                this.listeners_ = [
+                  google.maps.event.addListener(this, 'position_changed',
+                      function () { me.draw(); }),
+                  google.maps.event.addListener(this, 'text_changed',
+                      function () { me.draw(); })
+                ];
+            };
+
+            // Implement onRemove
+            Label.prototype.onRemove = function () {
+                this.div_.parentNode.removeChild(this.div_);
+
+                // Label is removed from the map, stop updating its position/text.
+                for (var i = 0, I = this.listeners_.length; i < I; ++i) {
+                    google.maps.event.removeListener(this.listeners_[i]);
+                }
+            };
+
+            // Implement draw
+            Label.prototype.draw = function () {
+                var projection = this.getProjection();
+                var position = projection.fromLatLngToDivPixel(this.get('position'));
+
+                var div = this.div_;
+                div.style.left = position.x + 'px';
+                div.style.top = position.y + 'px';
+                div.style.display = 'block';
+
+                this.span_.innerHTML = this.text;
+            };
+        </script>
+    </body>
+</html>
