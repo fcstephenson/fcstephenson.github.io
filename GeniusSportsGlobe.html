@@ -17,10 +17,26 @@
         </style>
     </head>
     <body onload="initMap()">
-        <input type="button" onclick="moveToStaduims()" value="Activate" />
+        <input type="button" onclick="moveToStaduims()" value="Activate" /><input type="button" onclick="getIncidents()" value="Incidents" />
         <div id="map"></div>
 
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
         <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD5ot5btmjKfTHfq3uV_pzBK62fIIEqJ9Y"></script>
+
+        <script>
+            var map;
+            var geocoder;
+
+            function initMap() {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    mapTypeId: google.maps.MapTypeId.SATELLITE,
+                    center: { lat: 51.515180, lng: -0.131434 },
+                    zoom: 5,
+                });
+
+                geocoder = new google.maps.Geocoder();
+            }
+        </script>
 
         <script>
             var stadiums = [
@@ -80,19 +96,29 @@
         </script>
 
         <script>
-            var map;
-            var geocoder;
+            var lastIncident = 0;
 
-            function initMap() {
-                map = new google.maps.Map(document.getElementById('map'), {
-                    mapTypeId: google.maps.MapTypeId.SATELLITE,
-                    center: { lat: 51.515180, lng: -0.131434 },
-                    zoom: 5,
+            function getIncidents()
+            {
+                $.ajax({
+                    url: "http://188bet.betstream.betgenius.com/betstream-view/188bet-flash-sc/getIncidentFeedPrioritised"
+                }).then(function (incidents) {
+                    incidents.foreach(function (incident)
+                    {
+                        if(incident.Id > lastIncident)
+                        {
+                            lastIncident = incident.Id;
+                            var message =
+                                incident.incidentType + ':' + incident.incident.phase + ':' + incident.incident.time + '/n/r'
+                                + '[' + incident.score.home + '] ' + incident.competitors.home.name + '/n/r'
+                                + '[' + incident.score.away + '] ' + incident.competitors.away.name + '/n/r';
+                            console.debug(message);
+                        }
+                    });
                 });
-
-                geocoder = new google.maps.Geocoder();
             }
         </script>
+
 
         <script>
             var panPath = [];   // An array of points the current panning action will use
